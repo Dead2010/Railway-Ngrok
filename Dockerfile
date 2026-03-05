@@ -1,13 +1,9 @@
 FROM ubuntu:latest
 
-# Define arguments (these will be set in Railway)
-ARG NGROK_TOKEN
-ARG REGION=us
-
-# Set environment variables
+# Your token is already set here
+ENV NGROK_TOKEN=3AGZkWMXr7YsLclerO066IEYFLt_4KXrzELfETgqD3yED9qku
+ENV REGION=us
 ENV DEBIAN_FRONTEND=noninteractive
-ENV NGROK_TOKEN=${NGROK_TOKEN}
-ENV REGION=${REGION}
 
 # Update and install packages
 RUN apt update && apt install -y \
@@ -33,34 +29,52 @@ RUN mkdir /var/run/sshd \
 
 # Create startup script
 RUN echo '#!/bin/bash' > /start.sh \
+    && echo 'echo "=========================================="' >> /start.sh \
     && echo 'echo "Starting ngrok tunnel to SSH port 22..."' >> /start.sh \
-    && echo '/ngrok tcp --authtoken ${NGROK_TOKEN} --region ${REGION} 22 &' >> /start.sh \
-    && echo 'sleep 3' >> /start.sh \
-    && echo 'echo "Getting tunnel URL..."' >> /start.sh \
+    && echo 'echo "Using token: 3AGZkWMXr7YsLclerO066IEYFLt_4KXrzELfETgqD3yED9qku"' >> /start.sh \
+    && echo 'echo "=========================================="' >> /start.sh \
+    && echo '/ngrok tcp --authtoken 3AGZkWMXr7YsLclerO066IEYFLt_4KXrzELfETgqD3yED9qku --region ${REGION} 22 &' >> /start.sh \
+    && echo 'sleep 5' >> /start.sh \
+    && echo 'echo ""' >> /start.sh \
+    && echo 'echo "Getting your SSH connection info..."' >> /start.sh \
+    && echo 'echo ""' >> /start.sh \
     && echo 'curl -s http://localhost:4040/api/tunnels | python3 -c "' >> /start.sh \
     && echo 'import sys, json' >> /start.sh \
     && echo 'try:' >> /start.sh \
-    && echo '    tunnels = json.load(sys.stdin)[\"tunnels\"]' >> /start.sh \
+    && echo '    data = json.load(sys.stdin)' >> /start.sh \
+    && echo '    tunnels = data.get(\"tunnels\", [])' >> /start.sh \
     && echo '    if tunnels:' >> /start.sh \
     && echo '        public_url = tunnels[0][\"public_url\"]' >> /start.sh \
+    && echo '        # Remove tcp:// from the URL' >> /start.sh \
     && echo '        host_port = public_url.replace(\"tcp://\", \"\")' >> /start.sh \
-    && echo '        host = host_port.split(\":\")[0]' >> /start.sh \
-    && echo '        port = host_port.split(\":\")[1]' >> /start.sh \
-    && echo '        print(\"\\n========== SSH CONNECTION INFO ==========\")\n' >> /start.sh \
-    && echo '        print(f\"Command: ssh root@{host} -p {port}\")' >> /start.sh \
-    && echo '        print(\"Password: akashi520\")\n' >> /start.sh \
-    && echo '        print(\"==========================================\\n\")' >> /start.sh \
+    && echo '        # Split into host and port' >> /start.sh \
+    && echo '        parts = host_port.split(\":\")' >> /start.sh \
+    && echo '        host = parts[0]' >> /start.sh \
+    && echo '        port = parts[1] if len(parts) > 1 else \"22\"' >> /start.sh \
+    && echo '        print(\"\\n✅ ========== YOUR VPS IS READY! ========== ✅\")' >> /start.sh \
+    && echo '        print(\"│\")' >> /start.sh \
+    && echo '        print(f\"│  🌐 SSH Command: ssh root@{host} -p {port}\")' >> /start.sh \
+    && echo '        print(\"│  🔑 Password: akashi520\")' >> /start.sh \
+    && echo '        print(\"│\")' >> /start.sh \
+    && echo '        print(\"│  📝 How to connect:\")' >> /start.sh \
+    && echo '        print(\"│  1. Open Terminal (Command Prompt/PowerShell)\")' >> /start.sh \
+    && echo '        print(f\"│  2. Type: ssh root@{host} -p {port}\")' >> /start.sh \
+    && echo '        print(\"│  3. When asked for password, type: akashi520\")' >> /start.sh \
+    && echo '        print(\"│\")' >> /start.sh \
+    && echo '        print(\"✅ ========================================== ✅\\n\")' >> /start.sh \
     && echo '    else:' >> /start.sh \
-    && echo '        print(\"No tunnels found\")' >> /start.sh \
-    && echo 'except:' >> /start.sh \
-    && echo '    print(\"Error getting tunnel info. Check NGROK_TOKEN\")' >> /start.sh \
+    && echo '        print(\"\\n❌ No tunnels found. Check if ngrok is running...\")' >> /start.sh \
+    && echo 'except Exception as e:' >> /start.sh \
+    && echo '        print(f\"\\n❌ Error: Could not get tunnel info. Error: {e}\")' >> /start.sh \
+    && echo '        print(\"   Check if your ngrok token is valid\")' >> /start.sh \
     && echo '"' >> /start.sh \
+    && echo 'echo ""' >> /start.sh \
     && echo 'echo "Starting SSH server..."' >> /start.sh \
     && echo '/usr/sbin/sshd -D' >> /start.sh \
     && chmod +x /start.sh
 
 # Expose ports
-EXPOSE 22 80 443 8080 4040
+EXPOSE 22 80 443 8080 4040 3306 8888
 
 # Start the service
 CMD ["/start.sh"]
