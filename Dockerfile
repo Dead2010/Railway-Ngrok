@@ -13,11 +13,13 @@ RUN apt update && apt install -y \
     vim \
     curl \
     python3 \
+    python3-venv \
     python3-pip \
     && apt clean
 
-# Install a simple web server for health checks
-RUN pip3 install flask
+# Create virtual environment and install flask
+RUN python3 -m venv /venv \
+    && /venv/bin/pip install flask
 
 # Download and install ngrok
 RUN wget -q https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip -O /ngrok.zip \
@@ -31,22 +33,25 @@ RUN mkdir /var/run/sshd \
     && echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config \
     && echo 'root:akashi520' | chpasswd
 
-# Create a simple web server for health checks
-RUN echo '#!/usr/bin/env python3' > /healthcheck.py \
-    && echo 'from flask import Flask' >> /healthcheck.py \
-    && echo 'app = Flask(__name__)' >> /healthcheck.py \
-    && echo '@app.route("/")' >> /healthcheck.py \
-    && echo 'def health():' >> /healthcheck.py \
-    && echo '    return "OK", 200' >> /healthcheck.py \
-    && echo 'if __name__ == "__main__":' >> /healthcheck.py \
-    && echo '    app.run(host="0.0.0.0", port=80)' >> /healthcheck.py \
-    && chmod +x /healthcheck.py
+# Create a simple web server for health checks using Python with venv
+RUN echo '#!/bin/bash' > /healthcheck.sh \
+    && echo 'source /venv/bin/activate' >> /healthcheck.sh \
+    && echo 'python3 -c "' >> /healthcheck.sh \
+    && echo 'from flask import Flask' >> /healthcheck.sh \
+    && echo 'app = Flask(__name__)' >> /healthcheck.sh \
+    && echo '@app.route(\"/\")' >> /healthcheck.sh \
+    && echo 'def health():' >> /healthcheck.sh \
+    && echo '    return \"OK\", 200' >> /healthcheck.sh \
+    && echo 'if __name__ == \"__main__\":' >> /healthcheck.sh \
+    && echo '    app.run(host=\"0.0.0.0\", port=80)' >> /healthcheck.sh \
+    && echo '"' >> /healthcheck.sh \
+    && chmod +x /healthcheck.sh
 
 # Create main startup script
 RUN echo '#!/bin/bash' > /start.sh \
     && echo 'echo "=========================================="' >> /start.sh \
     && echo 'echo "Starting health check web server on port 80..."' >> /start.sh \
-    && echo 'python3 /healthcheck.py &' >> /start.sh \
+    && echo '/healthcheck.sh &' >> /start.sh \
     && echo 'echo "=========================================="' >> /start.sh \
     && echo 'echo "Starting ngrok tunnel to SSH port 22..."' >> /start.sh \
     && echo 'echo "Using token: 3AGZkWMXr7YsLclerO066IEYFLt_4KXrzELfETgqD3yED9qku"' >> /start.sh \
@@ -96,7 +101,7 @@ RUN echo '#!/bin/bash' > /start.sh \
     && echo '/usr/sbin/sshd -D' >> /start.sh \
     && chmod +x /start.sh
 
-# Expose ports - IMPORTANT: Railway needs port 80 for health checks
+# Expose ports
 EXPOSE 22 80 4040 8080 3306 8888
 
 # Start the service
